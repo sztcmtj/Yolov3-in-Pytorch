@@ -101,7 +101,7 @@ class Yolo_loss(nn.Module):
         super(Yolo_loss, self).__init__()
         self.conf = conf
         self.num_classes = num_classes
-        self.scale = conf.input_size[0] / feature_size
+        self.scale = conf.input_size / feature_size
         self.anchors = torch.tensor(anchors,dtype=torch.float32,device=conf.device) / self.scale
         self.num_anchors = len(anchors)
         self.coord_scale = conf.coord_scale

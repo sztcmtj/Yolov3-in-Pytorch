@@ -11,6 +11,27 @@ from datetime import datetime
 import struct # get_image_size
 import imghdr # get_image_size
 
+def random_scaling(yolo, train_ds):
+    new_res_idx = random.randint(0, len(conf.resolutions))
+    print('switching to resolution {}*{}'.format(conf.idx_2_res[str(new_res_idx)],
+                                                 conf.idx_2_res[str(new_res_idx)]))
+    conf.input_size = conf.resolutions[new_res_idx]
+    train_ds.conf = conf
+    yolo.train_loader = DataLoader(
+        train_ds,
+        batch_size=conf.batch_sizes[new_res_idx],
+        shuffle=True,
+        collate_fn=coco_collate_fn,
+        pin_memory=False,
+        num_workers=conf.num_workers[new_res_idx])
+    yolo.val_loader.transform = trans.Compose([
+        trans.Resize([conf.input_size, conf.input_size]),
+        trans.ToTensor(),
+        trans.Normalize(conf.mean, conf.std)
+    ])
+    yolo.model.update_input_size(conf)
+    yolo.res_idx = new_res_idx
+
 def get_time():
     return (str(datetime.now())[:-10]).replace(' ','-').replace(':','-')
 
@@ -65,7 +86,7 @@ def enumerate_shifted_anchor(feat_stride, height, width):
     shift_y = np.arange(0, height * feat_stride, feat_stride)
     shift_x = np.arange(0, width * feat_stride, feat_stride)
     shift_x, shift_y = np.meshgrid(shift_x, shift_y)
-    return torch.FloatTensor(shift_x), torch.FloatTensor(shift_y)
+    return torch.cat([torch.FloatTensor(shift_x).unsqueeze(-1), torch.FloatTensor(shift_y).unsqueeze(-1)],-1)
 
 def sigmoid(x):
     return 1.0/(math.exp(-x)+1.)
@@ -199,3 +220,6 @@ def compute_iou(box, boxes, box_area, boxes_area):
     union = box_area + boxes_area[:] - intersection[:]
     iou = intersection / union
     return iou
+
+def compare_tensors(a,b):
+    return torch.sum(torch.abs(a - b))

@@ -35,9 +35,14 @@ def draw_bbox_class(img,labels,bboxes,id_2_class):
         draw.text((bboxes_xywh[i][0],bboxes_xywh[i][1]),text=id_2_class[labels[i].item()],font=truefont)
     return img
 
-def de_preprocess(tensor,mean,std,cuda=False):
-    std = torch.Tensor(std).view(3,1,1)
-    mean = torch.Tensor(mean).view(3,1,1)
+def show_util(conf,idx,imgs, labels_group, bboxes_group, correct_id_2_class):
+    return draw_bbox_class(
+        trans.ToPILImage()(de_preprocess(conf, imgs[idx].cpu())),
+        labels_group[idx].cpu(), bboxes_group[idx].cpu(), correct_id_2_class)
+
+def de_preprocess(conf,tensor,cuda=False):
+    std = torch.Tensor(conf.std).view(3,1,1)
+    mean = torch.Tensor(conf.mean).view(3,1,1)
     if cuda:
         std = std.cuda()
         mean = mean.cuda()
