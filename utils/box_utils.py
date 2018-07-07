@@ -6,6 +6,12 @@ def xcycwh_2_x1y1x2y2(bbox):
     new_bbox = bbox.clone()
     new_bbox[:,:2] -= 0.5 * bbox[:,2:]
     new_bbox[:,2:] = 0.5 * new_bbox[:,2:] + bbox[:,:2]
+    return new_bbox
+
+def x1y1x2y2_2_xcycwh(bbox):
+    new_bbox = bbox.clone()
+    new_bbox[:,:2] = 0.5 * (bbox[:,:2] + bbox[:,2:])
+    new_bbox[:,2:] = bbox[:,2:] - bbox[:,:2]
     return new_bbox    
 
 def xywh_2_xcycwh(bbox):
@@ -25,6 +31,12 @@ def xcycwh_2_xywh(bbox):
     new_bbox = bbox.clone()
     new_bbox[:,:2] -= new_bbox[:,2:] / 2.
     return new_bbox
+
+def trim_pred_bboxes(bboxes, size):
+    """
+    bboxes : torch.tensor, shape = [n,4], format = xcycwh
+    """
+    return x1y1x2y2_2_xcycwh(torch.clamp(xcycwh_2_x1y1x2y2(bboxes), 0, size))
 
 def cal_iou_wh(bboxes_wh,anchors):
     """
@@ -58,10 +70,13 @@ def cal_iou_wh_orig(bboxes_wh,anchors):
     iou = intersect_area / (box_area + anchor_area - intersect_area)
     return iou
 
-def adjust_bbox(img_size,input_size,bboxes):
+def adjust_bbox(img_size, input_size, bboxes, detect=False):
     ratio = torch.Tensor([input_size/img_size[0],input_size/img_size[1]])
     ratio = ratio.repeat(bboxes.shape[0],2)
-    bboxes = bboxes * ratio
+    if not detect:
+        bboxes = bboxes * ratio
+    else:
+        bboxes = bboxes / ratio.unsqueeze(0)
     return bboxes
 
 def horizontal_flip_boxes(bboxes,size):

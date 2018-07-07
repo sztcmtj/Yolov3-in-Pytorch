@@ -54,7 +54,7 @@ class Coco_dataset(Dataset):
             return None
         else:
             return self.pair(self.aug.noise_tsfm(self.conf)\
-                             (aff_tsfm_img(img)),torch.cat(bboxes),torch.tensor(category_ids,dtype=torch.long))
+                             (aff_tsfm_img(img)),torch.cat(bboxes),torch.tensor(category_ids,dtype=torch.long))        
 
 def get_coco_class_name_map(anno):
     coco=COCO(anno)

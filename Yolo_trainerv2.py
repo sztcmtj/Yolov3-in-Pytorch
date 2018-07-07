@@ -79,7 +79,7 @@ class Yolo(object):
             if len(bboxes) != 0:
                 picked_boxes = non_max_suppression(xcycwh_2_xywh(bboxes.detach()).clone().cpu().numpy(),
                                                    confidences.detach().clone().cpu().numpy(),
-                                                   threshold)
+                                                   conf.pred_nms_iou_threshold)
                 if return_img:
                     return trans.ToTensor()((draw_bbox_class(trans.ToPILImage()(de_preprocess(img.cpu(),conf.mean,conf.std)),
                                                               classes[picked_boxes].cpu(),

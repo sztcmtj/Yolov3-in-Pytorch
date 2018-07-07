@@ -15,9 +15,16 @@ from tqdm import tqdm_notebook as tqdm
 from collections import namedtuple
 from tensorboardX import SummaryWriter
 import time
-
+from matplotlib import pyplot as plt
 
 def calc_preds(conf, preds, object_only=True):
+    '''
+    calculate the prediction(bboxes and labels) from the output preds
+    inputs : 
+    preds : namedtuple, output of model forward
+    return :
+    bboxes_group, labels_group : list, each img's predicted bboxes and labels
+    '''
     bboxes_group = []
     labels_group = []
     nB = len(preds.loss_feats[0])
@@ -46,7 +53,7 @@ def calc_preds(conf, preds, object_only=True):
                 picked_boxes = non_max_suppression(
                     xcycwh_2_xywh(bboxes_predicted).cpu().numpy(),
                     conf_predicted.cpu().numpy(), conf.pred_nms_iou_threshold)
-                bboxes_group.append(bboxes_predicted[picked_boxes])
+                bboxes_group.append(trim_pred_bboxes(bboxes_predicted[picked_boxes], conf.input_size))
                 labels_group.append(cls_predicted[picked_boxes])
             else:
                 bboxes_group.append(
@@ -62,10 +69,11 @@ class Yolo(object):
                  train_loader=None,
                  val_loader=None,
                  optimizer=None):
+        # for multi scale training
         self.steps = [0, 0, 0, 0, 0, 0, 0, 0]
         self.writers = [SummaryWriter(conf.log_path / 'writer_ft')] + [
             SummaryWriter(conf.log_path / 'writer_{}'.format(resolution))
-            for resolution in conf.resolutions
+            for resolution in conf.resolutions[1:]
         ]
         self.model = model
         self.train_loader = train_loader
@@ -86,19 +94,37 @@ class Yolo(object):
                 get_time(), val_loss, self.seen, self.steps, extra)))
 
     def predict(self, conf, imgs, object_only=True, return_img=False):
+        '''
+        inputs :
+        imgs : input tensor : shape [nB,3,input_size,input_size]
+        object_only : only use object confidence to deduct the bbox
+        return : PIL Image or bboxes_group and labels_group
+        '''
         imgs = imgs.to(conf.device)
+#         size = imgs.shape[-1]
         nB = len(imgs)
         self.model.eval()
         with torch.no_grad():
             preds = self.model(imgs)
             bboxes_group, labels_group = calc_preds(
-                conf, preds, object_only=conf.object_only)
+                conf, preds, object_only = conf.object_only_on_predict)
         self.model.train()
         if return_img:
             return show_util(conf, 0, imgs, labels_group, bboxes_group,
                              self.train_loader.dataset.maps[2])
         else:
             return bboxes_group, labels_group
+    
+    def detect_on_img(self,img):
+        '''
+        detect with original img size
+        img : PIL Image
+        '''
+        input_img = self.val_loader.transform(img)
+        bboxes_group, labels_group = self.predict(conf, input_img, False)
+        bboxes, labels = bboxes_group[0].cpu(), labels_group[0].cpu()
+        bboxes_adjusted = adjust_bbox(img.size, conf.input_size, bboxes, detect=True)
+        return draw_bbox_class(img, labels, bboxes_adjusted, self.train_loader.dataset.maps[2])
 
     def evaluate(self, conf, verbose=False):
         self.val_loader.current = 0
@@ -142,7 +168,7 @@ class Yolo(object):
                     running_loss_cls += losses.loss_cls
 
                     bboxes_group_pred, labels_group_pred = calc_preds(
-                        conf, preds, object_only=conf.object_only)
+                        conf, preds, object_only = conf.object_only_on_predict)
 
                     for nb in range(len(imgs)):
                         pred_bboxes = bboxes_group_pred[nb]
@@ -337,11 +363,11 @@ class Yolo(object):
                     running_loss_cls = 0.
 
                 if self.steps[self.res_idx] % conf.evaluate_every == 0:
-                    val_loss,
-                    val_loss_xy,
-                    val_loss_wh,
-                    val_loss_conf,
-                    val_loss_cls,
+                    val_loss,\
+                    val_loss_xy,\
+                    val_loss_wh,\
+                    val_loss_conf,\
+                    val_loss_cls,\
                     precision, recall, f1, cls_acc = self.evaluate(conf)
 
                     self.writers[self.res_idx].add_scalar(
@@ -372,7 +398,7 @@ class Yolo(object):
                             self.val_loader.transform(img).unsqueeze(0))
                     imgs_board = torch.cat(imgs_board)
                     bboxes_group_board, labels_group_board = self.predict(
-                        conf, imgs_board, object_only=True, return_img=False)
+                        conf, imgs_board, object_only=conf.object_only_on_predict, return_img=False)
 
                     for i in range(20):
                         img = show_util(conf, i, imgs_board,

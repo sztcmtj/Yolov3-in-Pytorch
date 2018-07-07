@@ -5,7 +5,7 @@ from PIL import Image,ImageDraw,ImageFont
 from utils.box_utils import *
 from torchvision import transforms as trans
 
-truefont = ImageFont.truetype('/root/Notebooks/fonts/arial.ttf',size=20)
+truefont = ImageFont.truetype('/root/Notebooks/fonts/arial.ttf',size=12)
 
 def random_colors(N, bright=True):
     """
@@ -21,6 +21,10 @@ def random_colors(N, bright=True):
     return colors
 
 def draw_bbox_class(img,labels,bboxes,id_2_class):
+    """
+    img : PIL Image
+    """
+    x_max, y_max = img.size
     classes_list = labels.numpy().tolist()
     filtered_classes = set(classes_list)
     N = len(filtered_classes)
@@ -28,11 +32,23 @@ def draw_bbox_class(img,labels,bboxes,id_2_class):
     class_2_color = {}
     for i,c in enumerate(filtered_classes):
         class_2_color[c] = (colors[i][0],colors[i][1],colors[i][2])
-        draw = ImageDraw.Draw(img)
+    draw = ImageDraw.Draw(img)
     bboxes_xywh = xcycwh_2_xywh(bboxes)
     for i in range(bboxes_xywh.shape[0]):
-        draw.rectangle(xywh_2_x1y1x2y2(bboxes_xywh[i]),outline=class_2_color[labels[i].item()])
-        draw.text((bboxes_xywh[i][0],bboxes_xywh[i][1]),text=id_2_class[labels[i].item()],font=truefont)
+        x1y1x2y2 = xywh_2_x1y1x2y2(bboxes_xywh[i])
+        x_corner,y1 = x1y1x2y2[0].item(),x1y1x2y2[1].item()
+        
+        text=id_2_class[labels[i].item()]
+        text_w, text_h = draw.textsize(text,font=truefont)
+        
+        if y1 < text_h:
+            y_corner = 0
+        else:
+            y_corner = y1 - text_h
+        
+        draw.rectangle([(x_corner,y_corner),(x_corner + text_w, y_corner + text_h)],fill = class_2_color[labels[i].item()])
+        draw.rectangle(x1y1x2y2,outline=class_2_color[labels[i].item()])
+        draw.text((x_corner,y_corner),text=text, fill='black', font=truefont)
     return img
 
 def show_util(conf,idx,imgs, labels_group, bboxes_group, correct_id_2_class):

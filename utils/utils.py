@@ -7,12 +7,26 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from torch.autograd import Variable
 from datetime import datetime
-
+import random
+from torch.utils.data import DataLoader
+from torchvision import transforms as trans
 import struct # get_image_size
 import imghdr # get_image_size
 
-def random_scaling(yolo, train_ds):
-    new_res_idx = random.randint(0, len(conf.resolutions))
+def coco_collate_fn(batch):
+    imgs_group = []
+    bboxes_group = []
+    labels_group = []
+    for item in batch:
+        if item == None:
+            continue
+        else:
+            imgs_group.append(item.imgs.unsqueeze(0))
+            bboxes_group.append(item.bboxes)
+            labels_group.append(item.labels)
+    return torch.cat(imgs_group), bboxes_group, labels_group
+
+def scaling_model(conf, new_res_idx, yolo, train_ds):
     print('switching to resolution {}*{}'.format(conf.idx_2_res[str(new_res_idx)],
                                                  conf.idx_2_res[str(new_res_idx)]))
     conf.input_size = conf.resolutions[new_res_idx]
@@ -24,14 +38,24 @@ def random_scaling(yolo, train_ds):
         collate_fn=coco_collate_fn,
         pin_memory=False,
         num_workers=conf.num_workers[new_res_idx])
+    conf.board_loss_every = len(yolo.train_loader) // 100
+    conf.evaluate_every = len(yolo.train_loader) // 10
+    conf.board_pred_image_every = len(yolo.train_loader) // 2
+    conf.save_every = len(yolo.train_loader) // 2
+    conf.board_grad_norm = len(yolo.train_loader) // 10
     yolo.val_loader.transform = trans.Compose([
         trans.Resize([conf.input_size, conf.input_size]),
         trans.ToTensor(),
         trans.Normalize(conf.mean, conf.std)
     ])
+    yolo.val_loader.batch_size = conf.batch_sizes[new_res_idx]
     yolo.model.update_input_size(conf)
     yolo.res_idx = new_res_idx
 
+def random_scaling(conf, yolo, train_ds):
+    new_res_idx = random.randint(1, len(conf.resolutions)-1)
+    scaling_model(conf, new_res_idx, yolo, train_ds)
+    
 def get_time():
     return (str(datetime.now())[:-10]).replace(' ','-').replace(':','-')
 
