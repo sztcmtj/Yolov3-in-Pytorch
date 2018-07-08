@@ -1,0 +1,14 @@
+pretrainedmodels==0.6.0
+torch==0.4.0
+easydict==1.7
+numpy==1.14.3
+imgaug==0.2.5
+tqdm==4.23.0
+sk_video==1.1.10
+opencv_python==3.4.0.12
+matplotlib==2.1.2
+Pillow==5.2.0
+image==1.5.24
+pycocotools==2.0.0
+tensorboardX==1.2
+torchvision==0.2.1

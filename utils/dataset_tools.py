@@ -137,90 +137,10 @@ class Coco_loader():
             bboxes_group.append(bboxes)
             self.current += 1
         return torch.cat(imgs),labels_group,bboxes_group
-            
-def arrange_bbox_label(device,coco_anchors,labels_group,bboxes_group):
-    """
-    根据ground truth的w和h,通过和预设anchors的比对找出最匹配的anchor
-    根据匹配上的anchor划分成大、中、小三组，
-    每一个尺度返回3个参数，labels_group，bboxes_group，best_anchors_idx
-    best_anchors_idx属于[0,1,2],代表每一组里的3个anchors选了哪个
-    注意如果某个尺度没有匹配上，该尺度对应的参数返回的是空集
-    """
-    labels_group_small = []
-    labels_group_medium = []
-    labels_group_large = []
-    bboxes_group_small = []
-    bboxes_group_medium = []
-    bboxes_group_large = []
-    best_anchors_idx_group_small = []
-    best_anchors_idx_group_medium = []
-    best_anchors_idx_group_large = []
-    coco_anchors = torch.tensor(coco_anchors,dtype=torch.float32,device=device)
-    anchor_generated_boxes = torch.cat([torch.zeros_like(coco_anchors),coco_anchors],dim=1)
-    for labels,bboxes in zip(labels_group,bboxes_group):
-        assert len(labels) == len(bboxes),'labels and bboxes numbers not match'
-        boxes_wh_only = bboxes.clone()
-        boxes_wh_only[:,:2] = 0.
-        best_anchors_iou,best_anchors_idx = torch.max(cal_ious(anchor_generated_boxes,boxes_wh_only).to(device),dim=0)
-        labels_small = []
-        labels_medium = []
-        labels_large = []
-        bboxes_small = []
-        bboxes_medium = []
-        bboxes_large = []
-        best_anchors_idx_small = []
-        best_anchors_idx_medium = []
-        best_anchors_idx_large = []
-        for i in range(len(best_anchors_idx)):
-            if best_anchors_idx[i].item() in range(0,3):
-                labels_small.append(labels[i].item())
-                bboxes_small.append(bboxes[i].view(1,-1))
-                best_anchors_idx_small.append(best_anchors_idx[i].item())
-            elif best_anchors_idx[i].item() in range(3,6):
-                labels_medium.append(labels[i].item())
-                bboxes_medium.append(bboxes[i].view(1,-1))
-                best_anchors_idx_medium.append(best_anchors_idx[i].item()-3)
-            else:
-                labels_large.append(labels[i].item())
-                bboxes_large.append(bboxes[i].view(1,-1))
-                best_anchors_idx_large.append(best_anchors_idx[i].item()-6)
-        labels_group_small.append(labels_small)
-        labels_group_medium.append(labels_medium)
-        labels_group_large.append(labels_large)
-        bboxes_group_small.append(bboxes_small)
-        bboxes_group_medium.append(bboxes_medium)
-        bboxes_group_large.append(bboxes_large)
-        best_anchors_idx_group_small.append(best_anchors_idx_small)
-        best_anchors_idx_group_medium.append(best_anchors_idx_medium)
-        best_anchors_idx_group_large.append(best_anchors_idx_large)
-    return labels_group_small,labels_group_medium,labels_group_large,\
-            bboxes_group_small,bboxes_group_medium,bboxes_group_large,\
-            best_anchors_idx_group_small,best_anchors_idx_group_medium,best_anchors_idx_group_large
-
-def prepare_loss_input(device,feature,labels_group,bboxes_group,best_anchors_idx_group):
-    input_idx = []
-    final_labels = []
-    final_bboxes = []
-    final_anchors_idx = []
-    """
-    并不是每一张图片都会在大、中、小三个尺度匹配上对应的GT object。
-    如果某个尺度上没有匹配上，就没必要送进下一层去计算loss
-    所以这里对一个batch里面的图片进行刷选，生成最终的loss输入
-    """
-    for i,(labels,bboxes,idx) in enumerate(zip(labels_group,bboxes_group,best_anchors_idx_group)):
-        assert len(labels) == len(bboxes) == len(idx),'labels and bboxes and anchors idx number not match'
-        if len(labels) != 0:
-            input_idx.append(i)
-            final_labels.append(torch.tensor(labels,dtype=torch.long,device=device))
-            final_bboxes.append(torch.cat(bboxes).to(device))
-            final_anchors_idx.append(torch.tensor(idx,dtype=torch.long,device=device))
-    final_feature = feature[input_idx]
-    return final_feature,final_bboxes,final_labels,final_anchors_idx
 
 def get_id_maps(conf):
     coco_class_2_id, coco_id_2_class = get_coco_class_name_map(
         conf.train_anno_path)
-    conf.class_num = len(coco_id_2_class)
 
     id_2_correct_id = {}
     correct_id_2_id = {}

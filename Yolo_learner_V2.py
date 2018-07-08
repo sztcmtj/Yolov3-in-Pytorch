@@ -17,7 +17,7 @@ from tensorboardX import SummaryWriter
 import time
 from matplotlib import pyplot as plt
 
-def calc_preds(conf, preds, object_only=True):
+def calc_preds(conf, preds, return_confidence=False):
     '''
     calculate the prediction(bboxes and labels) from the output preds
     inputs : 
@@ -27,6 +27,7 @@ def calc_preds(conf, preds, object_only=True):
     '''
     bboxes_group = []
     labels_group = []
+    if return_confidence: confidences_group = []
     nB = len(preds.loss_feats[0])
     with torch.no_grad():
         for nb in range(nB):
@@ -34,11 +35,11 @@ def calc_preds(conf, preds, object_only=True):
             cls_predicted = []
             conf_predicted = []
             for l in range(3):
-                confidences = preds.loss_feats[l][nb][..., 4]
+                confidences = F.sigmoid(preds.loss_feats[l][nb][..., 4])
                 cls_conf_preds, classes = torch.max(
-                    preds.loss_feats[l][nb][..., 5:], dim=-1)
+                    F.softmax(preds.loss_feats[l][nb][..., 5:],dim=-1), dim=-1)
                 bboxes = preds.pred_bboxes_group[l][nb]
-                if object_only:
+                if conf.object_only_on_predict:
                     final_conf = confidences
                 else:
                     final_conf = confidences * cls_conf_preds
@@ -55,12 +56,17 @@ def calc_preds(conf, preds, object_only=True):
                     conf_predicted.cpu().numpy(), conf.pred_nms_iou_threshold)
                 bboxes_group.append(trim_pred_bboxes(bboxes_predicted[picked_boxes], conf.input_size))
                 labels_group.append(cls_predicted[picked_boxes])
+                if return_confidence: confidences_group.append(conf_predicted[picked_boxes])
             else:
                 bboxes_group.append(
                     torch.tensor([0., 0., 0.,
                                   0.]).unsqueeze(0).to(conf.device))
                 labels_group.append(torch.tensor([0]).to(conf.device))
-    return bboxes_group, labels_group
+                if return_confidence: confidences_group.append(torch.tensor([0]).to(conf.device))
+    if return_confidence:
+        return bboxes_group, labels_group, confidences_group
+    else:
+        return bboxes_group, labels_group
 
 class Yolo(object):
     def __init__(self,
@@ -68,13 +74,16 @@ class Yolo(object):
                  model=None,
                  train_loader=None,
                  val_loader=None,
-                 optimizer=None):
+                 optimizer=None,
+                 init_writers = True):
         # for multi scale training
         self.steps = [0, 0, 0, 0, 0, 0, 0, 0]
-        self.writers = [SummaryWriter(conf.log_path / 'writer_ft')] + [
-            SummaryWriter(conf.log_path / 'writer_{}'.format(resolution))
-            for resolution in conf.resolutions[1:]
-        ]
+        if init_writers:
+            self.writers = [SummaryWriter(conf.log_path / 'writer_ft')] + \
+            [
+                SummaryWriter(conf.log_path / 'writer_{}'.format(resolution))
+                for resolution in conf.resolutions[1:]
+            ]
         self.model = model
         self.train_loader = train_loader
         self.val_loader = val_loader
@@ -82,22 +91,23 @@ class Yolo(object):
         self.optimizer = optimizer
         self.resolution_num = len(conf.resolutions)
         self.res_idx = 0
+        self.class_2_color = get_class_colors(conf)
 
-    def save_state(self, conf, val_loss, extra=None):
+    def save_state(self, conf, val_loss, extra=None, model_only=False):
         torch.save(
             self.model.state_dict(), conf.model_path /
             ('{}_val_loss:{}_model_seen:{}_step:{}_{}.pth'.format(
                 get_time(), val_loss, self.seen, self.steps, extra)))
-        torch.save(
-            self.optimizer.state_dict(), conf.model_path /
-            ('{}_val_loss:{}_optimizer_seen:{}_step:{}_{}.pth'.format(
-                get_time(), val_loss, self.seen, self.steps, extra)))
+        if not model_only:
+            torch.save(
+                self.optimizer.state_dict(), conf.model_path /
+                ('{}_val_loss:{}_optimizer_seen:{}_step:{}_{}.pth'.format(
+                    get_time(), val_loss, self.seen, self.steps, extra)))
 
-    def predict(self, conf, imgs, object_only=True, return_img=False):
+    def predict(self, conf, imgs, return_img=False, return_confidence=False):
         '''
         inputs :
         imgs : input tensor : shape [nB,3,input_size,input_size]
-        object_only : only use object confidence to deduct the bbox
         return : PIL Image or bboxes_group and labels_group
         '''
         imgs = imgs.to(conf.device)
@@ -106,25 +116,37 @@ class Yolo(object):
         self.model.eval()
         with torch.no_grad():
             preds = self.model(imgs)
-            bboxes_group, labels_group = calc_preds(
-                conf, preds, object_only = conf.object_only_on_predict)
+            if not return_confidence:
+                bboxes_group, labels_group = calc_preds(
+                    conf, preds, return_confidence = return_confidence)
+            else:
+                bboxes_group, labels_group, confidences_group = calc_preds(
+                    conf, preds, return_confidence = return_confidence)
         self.model.train()
         if return_img:
             return show_util(conf, 0, imgs, labels_group, bboxes_group,
-                             self.train_loader.dataset.maps[2])
+                             conf.correct_id_2_class, self.class_2_color)
         else:
-            return bboxes_group, labels_group
+            if return_confidence:
+                return bboxes_group, labels_group, confidences_group
+            else:
+                return bboxes_group, labels_group
     
-    def detect_on_img(self,img):
+    def detect_on_img(self, conf, img, level=0):
         '''
         detect with original img size
         img : PIL Image
+        level : on which resolution to run detection, range[1 - 7], default is 416
+        the resolution list is in conf.resolutions
         '''
-        input_img = self.val_loader.transform(img)
+        conf.input_size = conf.resolutions[level]
+        conf.transform_test.transforms[0] = trans.Resize([conf.resolutions[level], conf.resolutions[level]])
+        self.model.update_input_size(conf)
+        input_img = conf.transform_test(img).unsqueeze(0)
         bboxes_group, labels_group = self.predict(conf, input_img, False)
         bboxes, labels = bboxes_group[0].cpu(), labels_group[0].cpu()
         bboxes_adjusted = adjust_bbox(img.size, conf.input_size, bboxes, detect=True)
-        return draw_bbox_class(img, labels, bboxes_adjusted, self.train_loader.dataset.maps[2])
+        return draw_bbox_class(img, labels, bboxes_adjusted, conf.correct_id_2_class, self.class_2_color)
 
     def evaluate(self, conf, verbose=False):
         self.val_loader.current = 0
@@ -167,8 +189,7 @@ class Yolo(object):
                     running_loss_conf += losses.loss_conf
                     running_loss_cls += losses.loss_cls
 
-                    bboxes_group_pred, labels_group_pred = calc_preds(
-                        conf, preds, object_only = conf.object_only_on_predict)
+                    bboxes_group_pred, labels_group_pred = calc_preds(conf, preds)
 
                     for nb in range(len(imgs)):
                         pred_bboxes = bboxes_group_pred[nb]
@@ -398,12 +419,12 @@ class Yolo(object):
                             self.val_loader.transform(img).unsqueeze(0))
                     imgs_board = torch.cat(imgs_board)
                     bboxes_group_board, labels_group_board = self.predict(
-                        conf, imgs_board, object_only=conf.object_only_on_predict, return_img=False)
+                        conf, imgs_board, return_img=False)
 
                     for i in range(20):
                         img = show_util(conf, i, imgs_board,
                                         labels_group_board, bboxes_group_board,
-                                        self.val_loader.dataset.maps[2])
+                                        conf.correct_id_2_class, self.class_2_color)
                         self.writers[self.res_idx].add_image(
                             'pred_image_{}'.format(i),
                             trans.ToTensor()(img),

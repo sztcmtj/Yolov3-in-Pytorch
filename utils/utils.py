@@ -12,7 +12,32 @@ from torch.utils.data import DataLoader
 from torchvision import transforms as trans
 import struct # get_image_size
 import imghdr # get_image_size
+from skvideo import io
+import cv2
+from tqdm import tqdm
 
+def detect_video(conf, video_file, out_path, yolo, level=0):
+    """Use yolo v3 to detect video.
+    # Argument:
+        video: video file.
+        yolo: YOLO, yolo model.
+        level : on which resolution to run detection, 
+        range[1 - 7], default is 416
+        the resolution list is in conf.resolutions
+    """
+    videogen = io.vreader(video_file)
+    metdata = io.ffprobe(video_file)
+    frame_rate = int(int(metdata['video']['@avg_frame_rate'].split('/')[0]) / int(metdata['video']['@avg_frame_rate'].split('/')[1]))
+    frame = next(videogen)
+    shape = (frame.shape[1], frame.shape[0])
+    video_writer = cv2.VideoWriter(out_path,cv2.VideoWriter_fourcc(*'XVID'), frame_rate, shape)
+    for frame in tqdm(videogen, total = int(metdata['video']['@nb_frames'])):
+        detected_frame = np.array(yolo.detect_on_img(conf, Image.fromarray(frame), level=level))[...,::-1]
+#         pdb.set_trace()
+        video_writer.write(detected_frame)
+    video_writer.release()
+    videogen.close()
+    
 def coco_collate_fn(batch):
     imgs_group = []
     bboxes_group = []

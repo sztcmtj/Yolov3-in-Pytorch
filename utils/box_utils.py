@@ -76,7 +76,7 @@ def adjust_bbox(img_size, input_size, bboxes, detect=False):
     if not detect:
         bboxes = bboxes * ratio
     else:
-        bboxes = bboxes / ratio.unsqueeze(0)
+        bboxes = bboxes / ratio
     return bboxes
 
 def horizontal_flip_boxes(bboxes,size):
