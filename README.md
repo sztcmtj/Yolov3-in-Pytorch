@@ -11,9 +11,9 @@
 2. Pytorch 0.4 codes
 2. Multi-Scale Training mentioned in the paper
 -> so far as I noticed, this one is not implemented by a lot of posts about yolo out there.
-5. lots of data augmentation,thanks to [imgaug][imgauglink]:
+5. lots of data augmentation,thanks to [imgaug][iaglink]:
 3. training in coco2017 dataset 
-[imgauglink]:https://github.com/aleju/imgaug
+[iaglink]:https://github.com/aleju/imgaug
 
 ### How to use
 First, clone this repo by input:
