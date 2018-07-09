@@ -11,9 +11,9 @@
 2. Pytorch 0.4 codes
 2. Multi-Scale Training mentioned in the paper
 -> so far as I noticed, this one is not implemented by a lot of posts about yolo out there.
-5. lots of data augmentation,thanks to [coco website][coco_address]:
-3. training in coco2017 dataset 
-[iaglink]:https://github.com/aleju/imgaug
+5. lots of data augmentation,thanks to [imgaug][iaglink]:
+3. training in coco2017 dataset
+
 
 ### How to use
 First, clone this repo by input:
@@ -62,6 +62,7 @@ python detect_on_camera.py -l detection_level
 [cuda model baidu link]: https://pan.baidu.com/s/1H0gBY_CsRXmyxaV5_zpbWQ
 [cpu model baidu link]: https://pan.baidu.com/s/1ZpxY4Ld-G-wfemc6OD8GEg
 [coco_address]: http://cocodataset.org/#download
+[iaglink]: https://github.com/aleju/imgaug
 
 ### Video Demo
 Demo1
