@@ -89,8 +89,10 @@ Todo List:
 * Multi-GPU Support
 * trained with original Darknet53
 * try Binary Classifier instead of Softmax as discussed in the paper
----
+
 I dont't have much computing resource, PRs are welcomed !
+
+---
 
 #### YOLOv3: An Incremental Improvement
 - [original Paper][paper]:
