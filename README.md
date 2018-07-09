@@ -74,8 +74,8 @@ Demo2
 [yk_link2]:https://v.youku.com/v_show/id_XMzcxMTY4MTUzMg==.html?spm=a2h3j.8428770.3416059.1
 
 ### Detection Example
-![img](data/city_detected.jpg')
-![img](data/dinner_detected.jpg')
+![img](data/city_detected.jpg)
+![img](data/dinner_detected.jpg)
 ![img](data/football_detected.jpg)
 
 Todo List:
