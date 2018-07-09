@@ -96,5 +96,6 @@ I dont't have much computing resource, PRs are welcomed !
 - [original Paper][paper]:
 - [original Implementation][imple]:
 - [website][web]:
+* * *
 This repo is also inspired by [marvis/pytorch-yolo2][v2]: and [qqwweee/keras-yolo3][keras]:
 
