@@ -63,16 +63,21 @@ python detect_on_camera.py -l detection_level
 [cpu model baidu link]: https://pan.baidu.com/s/1ZpxY4Ld-G-wfemc6OD8GEg
 [coco_address]: http://cocodataset.org/#download
 [iaglink]: https://github.com/aleju/imgaug
+[ytb_link1]:https://youtu.be/GZiUX4gczOc
+[yk_link1]:https://v.youku.com/v_show/id_XMzcxMTQ0OTI3Ng==.html?spm=a2hzp.8244740.0.0
+[ytb_link2]:https://youtu.be/C61NDUsA78k
+[yk_link2]:https://v.youku.com/v_show/id_XMzcxMTY4MTUzMg==.html?spm=a2h3j.8428770.3416059.1
+[imple]: https://github.com/pjreddie/darknet
+[paper]: https://arxiv.org/abs/1804.02767
+[web]: https://pjreddie.com/darknet/yolo/?utm_source=next.36kr.com
+[v2]: https://github.com/marvis/pytorch-yolo2
+[keras]: https://github.com/qqwweee/keras-yolo3
 
 ### Video Demo
 Demo1
 [Youtube][ytb_link1]: , [Youku][yk_link1]:
 Demo2
 [Youtube][ytb_link2]: , [Youku][yk_link2]:
-[ytb_link1]:https://youtu.be/GZiUX4gczOc
-[yk_link1]:https://v.youku.com/v_show/id_XMzcxMTQ0OTI3Ng==.html?spm=a2hzp.8244740.0.0
-[ytb_link2]:https://youtu.be/C61NDUsA78k
-[yk_link2]:https://v.youku.com/v_show/id_XMzcxMTY4MTUzMg==.html?spm=a2h3j.8428770.3416059.1
 
 ### Detection Example
 ![img](data/city_detected.jpg)
@@ -91,9 +96,5 @@ I dont't have much computing resource, PRs are welcomed !
 - [original Paper][paper]:
 - [original Implementation][imple]:
 - [website][web]:
-This repo is also inspired by [marvis/pytorch-yolo2][v2] and [qqwweee/keras-yolo3][keras]:
-[imple]: https://github.com/pjreddie/darknet
-[paper]: https://arxiv.org/abs/1804.02767
-[web]: https://pjreddie.com/darknet/yolo/?utm_source=next.36kr.com
-[v2]: https://github.com/marvis/pytorch-yolo2
-[keras]: https://github.com/qqwweee/keras-yolo3
+This repo is also inspired by [marvis/pytorch-yolo2][v2]: and [qqwweee/keras-yolo3][keras]:
+
