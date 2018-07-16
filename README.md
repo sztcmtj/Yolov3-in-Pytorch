@@ -57,16 +57,16 @@ python detect_on_camera.py -l detection_level
     ```
     Details and parameters are in the codes
 
-[cuda model google link]: https://drive.google.com/open?id=1VuA2SIUYat6bE6-8hvdGLCy1sDrmwK7z
-[cpu model google link]: https://drive.google.com/open?id=1xN-8gRId8JfW0dgotBtueOUqCKZfj0UF
-[cuda model baidu link]: https://pan.baidu.com/s/1H0gBY_CsRXmyxaV5_zpbWQ
-[cpu model baidu link]: https://pan.baidu.com/s/1ZpxY4Ld-G-wfemc6OD8GEg
+[cuda model google link]: https://drive.google.com/open?id=1QkuMZtryHMOqVY6bHylzNbWvsjOtEK5Q
+[cpu model google link]: https://drive.google.com/open?id=1QEEWI3aN__EmiSrA0yBiHOS1NeJU3OhQ
+[cuda model baidu link]: https://pan.baidu.com/s/17SJImLG7u_JtFy4QyXPfjA
+[cpu model baidu link]: https://pan.baidu.com/s/14w2aJDGTCcLiKWFJv2i2eQ
 [coco_address]: http://cocodataset.org/#download
 [iaglink]: https://github.com/aleju/imgaug
 [ytb_link1]:https://www.youtube.com/watch?v=JAUg3AAcvcU
-[yk_link1]:https://v.youku.com/v_show/id_XMzcxMTQ0OTI3Ng==.html?spm=a2hzp.8244740.0.0
+[yk_link1]:https://v.youku.com/v_show/id_XMzcyNzMzMjU0OA
 [ytb_link2]:https://www.youtube.com/watch?v=mkxW0tWA0pE
-[yk_link2]:https://v.youku.com/v_show/id_XMzcxMTY4MTUzMg==.html?spm=a2h3j.8428770.3416059.1
+[yk_link2]:https://v.youku.com/v_show/id_XMzcyNzMzMzgyMA
 [imple]: https://github.com/pjreddie/darknet
 [paper]: https://arxiv.org/abs/1804.02767
 [web]: https://pjreddie.com/darknet/yolo/?utm_source=next.36kr.com
