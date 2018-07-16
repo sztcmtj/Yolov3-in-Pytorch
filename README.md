@@ -63,9 +63,9 @@ python detect_on_camera.py -l detection_level
 [cpu model baidu link]: https://pan.baidu.com/s/1ZpxY4Ld-G-wfemc6OD8GEg
 [coco_address]: http://cocodataset.org/#download
 [iaglink]: https://github.com/aleju/imgaug
-[ytb_link1]:https://youtu.be/GZiUX4gczOc
+[ytb_link1]:https://www.youtube.com/watch?v=JAUg3AAcvcU
 [yk_link1]:https://v.youku.com/v_show/id_XMzcxMTQ0OTI3Ng==.html?spm=a2hzp.8244740.0.0
-[ytb_link2]:https://youtu.be/C61NDUsA78k
+[ytb_link2]:https://www.youtube.com/watch?v=mkxW0tWA0pE
 [yk_link2]:https://v.youku.com/v_show/id_XMzcxMTY4MTUzMg==.html?spm=a2h3j.8428770.3416059.1
 [imple]: https://github.com/pjreddie/darknet
 [paper]: https://arxiv.org/abs/1804.02767
