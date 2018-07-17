@@ -91,6 +91,7 @@ Demo2
 
 ### Performance:
 ---
+Haven't done any hyperparameter tuning
 ```
  Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.219
  Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.400
@@ -111,6 +112,7 @@ Todo List:
 * Multi-GPU Support
 * trained with original Darknet53
 * try Binary Classifier instead of Softmax as discussed in the paper
+* try soft-nms
 
 I dont't have much computing resource, PRs are welcomed !
 
