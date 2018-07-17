@@ -56,6 +56,11 @@ python detect_on_camera.py -l detection_level
     python train.py
     ```
     Details and parameters are in the codes
+- - -
+### Evaluate on coco:
+```
+python eva_coco.py -l detection_level
+```
 
 [cuda model google link]: https://drive.google.com/open?id=1QkuMZtryHMOqVY6bHylzNbWvsjOtEK5Q
 [cpu model google link]: https://drive.google.com/open?id=1QEEWI3aN__EmiSrA0yBiHOS1NeJU3OhQ
