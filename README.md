@@ -86,7 +86,7 @@ Demo2
 
 ### Performance:
 ---
-'''
+```
  Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.219
  Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.400
  Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.216
@@ -99,7 +99,7 @@ Demo2
  Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.126
  Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.329
  Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.475
-'''
+```
 
 Todo List:
 * Hyperparameters Tuning
