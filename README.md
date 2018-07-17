@@ -108,7 +108,7 @@ Haven't done any hyperparameter tuning
 ```
 
 Todo List:
-* Hyperparameters Tuning
+* Hyperparameters Tuning yet
 * Multi-GPU Support
 * trained with original Darknet53
 * try Binary Classifier instead of Softmax as discussed in the paper
