@@ -32,6 +32,7 @@ class Coco_dataset(Dataset):
         self.aug = Aug_Yolo(rotate,shear,PerspectiveTransform)
         self.conf = conf
         self.pair = namedtuple('pair', ['imgs', 'bboxes', 'labels'])
+        self.final_round = False
 
     def __len__(self):
         return len(self.orig_dataset)
@@ -41,20 +42,35 @@ class Coco_dataset(Dataset):
         bboxes = []
         category_ids = []
         if targets == []: return None
-        aff_tsfm_img,aff_tsfm_mask = self.aug.aff_tsfm(self.conf)
-        for target in targets:
-            mask_img = Image.fromarray(self.orig_dataset.coco.annToMask(target)*255)
-            mask_img = aff_tsfm_mask(mask_img)
-            bbox = extract_bboxes(np.asarray(mask_img))
-            if bbox[:,2:].min() < 8.:
-                continue
-            bboxes.append(torch.tensor(bbox,dtype=torch.float))
-            category_ids.append(self.maps[0][target['category_id']])
-        if len(bboxes) == 0:
-            return None
+        if not self.final_round:
+            aff_tsfm_img,aff_tsfm_mask = self.aug.aff_tsfm(self.conf)
+            for target in targets:
+                mask_img = Image.fromarray(self.orig_dataset.coco.annToMask(target)*255)
+                mask_img = aff_tsfm_mask(mask_img)
+                bbox = extract_bboxes(np.asarray(mask_img))
+                if bbox[:,2:].min() < 8.:
+                    continue
+                bboxes.append(torch.tensor(bbox,dtype=torch.float))
+                category_ids.append(self.maps[0][target['category_id']])
+            if len(bboxes) == 0:
+                return None
+            else:
+                return self.pair(self.aug.noise_tsfm(self.conf)\
+                                 (aff_tsfm_img(img)),torch.cat(bboxes),torch.tensor(category_ids,dtype=torch.long))
         else:
-            return self.pair(self.aug.noise_tsfm(self.conf)\
-                             (aff_tsfm_img(img)),torch.cat(bboxes),torch.tensor(category_ids,dtype=torch.long))        
+            labels,bboxes = synthesize_bbox_id(targets, self.maps[0])
+            labels = torch.LongTensor(labels)
+            bboxes = torch.cat(bboxes)
+            bboxes = adjust_bbox(img.size,self.conf.input_size,bboxes)
+            if random.random() > 0.5:
+                img = hflip(img)
+                bboxes = horizontal_flip_boxes(bboxes,self.conf.input_size)
+            bboxes = xywh_2_xcycwh(bboxes)
+            img = self.conf.transform_test(img)
+            if len(bboxes) == 0:
+                return None
+            else:
+                return self.pair(img, bboxes, labels)
 
 def get_coco_class_name_map(anno):
     coco=COCO(anno)

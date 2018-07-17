@@ -5,8 +5,6 @@ from PIL import Image,ImageDraw,ImageFont
 from utils.box_utils import *
 from torchvision import transforms as trans
 
-truefont = ImageFont.truetype('data/fonts/arial.ttf',size=12)
-
 def get_class_colors(conf):
     colors = random_colors(conf.class_num)
     class_2_color = {}
@@ -27,10 +25,37 @@ def random_colors(N, bright=True):
     colors = (np.array(colors) * 255).astype(int)
     return colors
 
-def draw_bbox_class(img, labels, bboxes, id_2_class, class_2_color):
+def draw_bbox_class_with_conf(conf, img, labels, bboxes, id_2_class, class_2_color, confidences, cls_conf, prt = False):
     """
     img : PIL Image
     """
+    truefont = ImageFont.truetype('data/fonts/arial.ttf',size=conf.font_size)
+    x_max, y_max = img.size
+    draw = ImageDraw.Draw(img)
+    bboxes_xywh = xcycwh_2_xywh(bboxes)
+    for i in range(bboxes_xywh.shape[0]):
+        x1y1x2y2 = xywh_2_x1y1x2y2(bboxes_xywh[i])
+        x_corner,y1 = x1y1x2y2[0].item(),x1y1x2y2[1].item()
+        
+        text = '{}_{:.2%}_{:.2%}'.format(id_2_class[str(labels[i].item())], confidences[i], cls_conf[i])
+        if prt:
+            print('{}_Confidence:{:.2%}_Class_Confidence:{:.2%}'.format(id_2_class[str(labels[i].item())], confidences[i], cls_conf[i]))
+        text_w, text_h = draw.textsize(text,font=truefont)
+        
+        if y1 < text_h:
+            y_corner = 0
+        else:
+            y_corner = y1 - text_h            
+        draw.rectangle([(x_corner,y_corner),(x_corner + text_w, y_corner + text_h)],fill = class_2_color[str(labels[i].item())])
+        draw.rectangle(x1y1x2y2,outline=class_2_color[str(labels[i].item())])
+        draw.text((x_corner,y_corner),text=text, fill='black', font=truefont)
+    return img
+
+def draw_bbox_class(conf, img, labels, bboxes, id_2_class, class_2_color):
+    """
+    img : PIL Image
+    """
+    truefont = ImageFont.truetype('data/fonts/arial.ttf',size=conf.font_size)
     x_max, y_max = img.size
 #     classes_list = labels.numpy().tolist()
 #     filtered_classes = set(classes_list)
@@ -45,7 +70,7 @@ def draw_bbox_class(img, labels, bboxes, id_2_class, class_2_color):
         x1y1x2y2 = xywh_2_x1y1x2y2(bboxes_xywh[i])
         x_corner,y1 = x1y1x2y2[0].item(),x1y1x2y2[1].item()
         
-        text=id_2_class[str(labels[i].item())]
+        text = id_2_class[str(labels[i].item())]
         text_w, text_h = draw.textsize(text,font=truefont)
         
         if y1 < text_h:
@@ -58,9 +83,15 @@ def draw_bbox_class(img, labels, bboxes, id_2_class, class_2_color):
         draw.text((x_corner,y_corner),text=text, fill='black', font=truefont)
     return img
 
+def show_util_with_conf(conf,idx,imgs, labels_group, bboxes_group, confidences_group, cls_conf_group, correct_id_2_class, class_2_color):
+    return draw_bbox_class_with_conf(conf, trans.ToPILImage()(de_preprocess(conf, imgs[idx].cpu())),\
+                                     labels_group[idx].cpu(), bboxes_group[idx].cpu(),\
+                                     correct_id_2_class, class_2_color, \
+                                     confidences_group[idx].cpu(), cls_conf_group[idx].cpu())
+
 def show_util(conf,idx,imgs, labels_group, bboxes_group, correct_id_2_class, class_2_color):
-    return draw_bbox_class(
-        trans.ToPILImage()(de_preprocess(conf, imgs[idx].cpu())),
+    return draw_bbox_class(conf,\
+        trans.ToPILImage()(de_preprocess(conf, imgs[idx].cpu())),\
         labels_group[idx].cpu(), bboxes_group[idx].cpu(), correct_id_2_class, class_2_color)
 
 def de_preprocess(conf,tensor,cuda=False):

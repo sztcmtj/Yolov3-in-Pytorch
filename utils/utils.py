@@ -55,6 +55,7 @@ def scaling_model(conf, new_res_idx, yolo, train_ds):
     print('switching to resolution {}*{}'.format(conf.idx_2_res[str(new_res_idx)],
                                                  conf.idx_2_res[str(new_res_idx)]))
     conf.input_size = conf.resolutions[new_res_idx]
+    conf.transform_test.transforms[0] = trans.Resize([conf.input_size, conf.input_size])
     train_ds.conf = conf
     yolo.train_loader = DataLoader(
         train_ds,
@@ -209,6 +210,50 @@ def bbox_ious(boxes1, boxes2, x1y1x2y2=True):
     carea[mask] = 0
     uarea = area1 + area2 - carea
     return carea/uarea
+
+def soft_nms(boxes, scores, sigma = 0.5, Nt = 0.3, threshold = 0.001, method = 2):
+    """Performs soft non-maximum supression and returns indicies of kept boxes.
+    boxes: [N, (xc, yc, w, h)].
+    scores: 1-D array of box scores. All elements of scores should >= 0
+    threshold: Float. IoU threshold to use for filtering.
+    """
+    assert boxes.shape[0] > 0
+    if boxes.dtype.kind != "f":
+        boxes = boxes.astype(np.float32)
+    area = boxes[:,2] * boxes[:,3]
+    # transfer to x1y1x2y2 format
+    boxes[:,0] -= boxes[:,2]/2
+    boxes[:,1] -= boxes[:,3]/2
+    boxes[:,2] += boxes[:,0]
+    boxes[:,3] += boxes[:,1]
+    
+    pick = []
+    
+    score_idx = np.arange(len(scores))
+    
+    
+    while np.any(scores != -1):
+        # Get indicies of boxes sorted by scores (highest first)
+        max_idx = scores.argmax()
+        pick.append(max_idx)
+        scores[max_idx] = -1
+
+        # Compute IoU of the picked box with the rest
+        score_idx = score_idx[score_idx != max_idx]
+        iou = compute_iou(boxes[max_idx], boxes[score_idx], area[max_idx], area[score_idx])
+
+        if method == 1: # linear
+            weight = np.where(iou > Nt, 1-iou, 1)
+        elif method == 2: # gaussian
+            weight = np.exp(-(iou)/sigma)
+        else: # original NMS
+            weight = np.where(iou > Nt, 0, 1)
+
+        scores[score_idx] *= weight
+
+        scores[score_idx[scores[score_idx] < threshold]] = -1
+        score_idx = np.delete(score_idx, np.where(scores[score_idx] < threshold)[0])
+    return torch.tensor(pick, dtype=torch.long) 
 
 def non_max_suppression(boxes, scores, threshold):
     """Performs non-maximum supression and returns indicies of kept boxes.

@@ -8,16 +8,19 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from utils.vis_utils import *
 from utils.box_utils import *
-from utils.dataset_tools import *
+# from utils.dataset_tools import *
 from utils.utils import *
 from models.Yolo_model import Yolo_model, build_targets, yolo_loss
-from tqdm import tqdm_notebook as tqdm
+from tqdm import tqdm
+# from tqdm import tqdm_notebook as tqdm
 from collections import namedtuple
 from tensorboardX import SummaryWriter
 import time
 from matplotlib import pyplot as plt
+from pycocotools.cocoeval import COCOeval
+import json
 
-def calc_preds(conf, preds, return_confidence=False):
+def calc_preds(conf, preds, return_confidence=False, training = True):
     '''
     calculate the prediction(bboxes and labels) from the output preds
     inputs : 
@@ -27,13 +30,16 @@ def calc_preds(conf, preds, return_confidence=False):
     '''
     bboxes_group = []
     labels_group = []
-    if return_confidence: confidences_group = []
+    if return_confidence: 
+        confidences_group = []
+        cls_conf_group = []
     nB = len(preds.loss_feats[0])
     with torch.no_grad():
         for nb in range(nB):
             bboxes_predicted = []
             cls_predicted = []
             conf_predicted = []
+            cls_conf_predicted = []
             for l in range(3):
                 confidences = F.sigmoid(preds.loss_feats[l][nb][..., 4])
                 cls_conf_preds, classes = torch.max(
@@ -43,28 +49,49 @@ def calc_preds(conf, preds, return_confidence=False):
                     final_conf = confidences
                 else:
                     final_conf = confidences * cls_conf_preds
+#                 if not training:
+#                     final_conf[cls_conf_preds < 0.8] = 0
+                    
                 predicted_mask = final_conf > conf.predict_confidence_threshold
+                    
                 bboxes_predicted.append(bboxes[predicted_mask])
                 cls_predicted.append(classes[predicted_mask])
-                conf_predicted.append(final_conf[predicted_mask])
+                conf_predicted.append(confidences[predicted_mask])
+                cls_conf_predicted.append(cls_conf_preds[predicted_mask])
             bboxes_predicted = torch.cat(bboxes_predicted)
             cls_predicted = torch.cat(cls_predicted)
             conf_predicted = torch.cat(conf_predicted)
+            cls_conf_predicted = torch.cat(cls_conf_predicted)
             if len(bboxes_predicted) != 0:
-                picked_boxes = non_max_suppression(
-                    xcycwh_2_xywh(bboxes_predicted).cpu().numpy(),
-                    conf_predicted.cpu().numpy(), conf.pred_nms_iou_threshold)
+                if not conf.use_softnms:
+                    picked_boxes = non_max_suppression(
+                        xcycwh_2_xywh(bboxes_predicted).cpu().numpy(),
+                        conf_predicted.cpu().numpy(),
+                        conf.pred_nms_iou_threshold)
+                else:
+                    picked_boxes = soft_nms(
+                        bboxes_predicted.cpu().numpy(),
+                        conf_predicted.cpu().numpy(), 
+                        sigma = conf.softnms_sigma,
+                        Nt = conf.softnms_Nt,
+                        threshold = conf.softnms_threshold,
+                        method = conf.softnms_method)
+
                 bboxes_group.append(trim_pred_bboxes(bboxes_predicted[picked_boxes], conf.input_size))
                 labels_group.append(cls_predicted[picked_boxes])
-                if return_confidence: confidences_group.append(conf_predicted[picked_boxes])
+                if return_confidence: 
+                    confidences_group.append(conf_predicted[picked_boxes])
+                    cls_conf_group.append(cls_conf_predicted[picked_boxes])
             else:
                 bboxes_group.append(
                     torch.tensor([0., 0., 0.,
                                   0.]).unsqueeze(0).to(conf.device))
                 labels_group.append(torch.tensor([0]).to(conf.device))
-                if return_confidence: confidences_group.append(torch.tensor([0]).to(conf.device))
+                if return_confidence:
+                    confidences_group.append(torch.tensor([0]).to(conf.device))
+                    cls_conf_group.append(torch.tensor([0]).to(conf.device))
     if return_confidence:
-        return bboxes_group, labels_group, confidences_group
+        return bboxes_group, labels_group, confidences_group, cls_conf_group
     else:
         return bboxes_group, labels_group
 
@@ -120,19 +147,25 @@ class Yolo(object):
                 bboxes_group, labels_group = calc_preds(
                     conf, preds, return_confidence = return_confidence)
             else:
-                bboxes_group, labels_group, confidences_group = calc_preds(
-                    conf, preds, return_confidence = return_confidence)
+                bboxes_group, labels_group, confidences_group, cls_conf_group \
+                = calc_preds(conf, preds, return_confidence = return_confidence, training = self.model.training)
         self.model.train()
-        if return_img:
-            return show_util(conf, 0, imgs, labels_group, bboxes_group,
-                             conf.correct_id_2_class, self.class_2_color)
+
+        if return_confidence:
+            if return_img:
+                return show_util_with_conf(conf, 0, imgs, labels_group, bboxes_group,\
+                                           confidences_group, cls_conf_group,\
+                                           conf.correct_id_2_class, self.class_2_color)
+            else:
+                return bboxes_group, labels_group, confidences_group, cls_conf_group
         else:
-            if return_confidence:
-                return bboxes_group, labels_group, confidences_group
+            if return_img:
+                return show_util(conf, 0, imgs, labels_group, bboxes_group,
+                             conf.correct_id_2_class, self.class_2_color)
             else:
                 return bboxes_group, labels_group
     
-    def detect_on_img(self, conf, img, level=0):
+    def detect_on_img(self, conf, img, level = 0, show_img = True, show_conf = False):
         '''
         detect with original img size
         img : PIL Image
@@ -143,10 +176,26 @@ class Yolo(object):
         conf.transform_test.transforms[0] = trans.Resize([conf.resolutions[level], conf.resolutions[level]])
         self.model.update_input_size(conf)
         input_img = conf.transform_test(img).unsqueeze(0)
-        bboxes_group, labels_group = self.predict(conf, input_img, False)
+
+        bboxes_group, labels_group, confidences_group, cls_conf_group = self.predict(conf, input_img, False, True)
+        
+        confidences, cls_conf = confidences_group[0].cpu(), cls_conf_group[0].cpu()      
         bboxes, labels = bboxes_group[0].cpu(), labels_group[0].cpu()
+        
         bboxes_adjusted = adjust_bbox(img.size, conf.input_size, bboxes, detect=True)
-        return draw_bbox_class(img, labels, bboxes_adjusted, conf.correct_id_2_class, self.class_2_color)
+        
+        if show_img:        
+            if show_conf:
+                return_img = draw_bbox_class_with_conf(conf, img, labels, bboxes_adjusted,\
+                                             conf.correct_id_2_class, self.class_2_color,\
+                                             confidences, cls_conf, True)
+            else:
+                return_img = draw_bbox_class(conf, img, labels, bboxes_adjusted, conf.correct_id_2_class, self.class_2_color)        
+            return return_img
+
+        else:
+            return bboxes_adjusted, labels, confidences, cls_conf
+
 
     def evaluate(self, conf, verbose=False):
         self.val_loader.current = 0
@@ -169,7 +218,7 @@ class Yolo(object):
         warm_up = self.seen < conf.warm_up_img_num
         with torch.no_grad():
             for imgs, labels_group, bboxes_group in loader:
-                if batch_count < conf.eva_batches:
+                if batch_count * self.val_loader.batch_size < conf.eva_seen:
                     imgs = imgs.to(conf.device)
                     for i, label in enumerate(labels_group):
                         labels_group[i] = label.to(conf.device)
@@ -216,12 +265,47 @@ class Yolo(object):
         cls_acc = cls_correct_num / n_gt
 
         self.model.train()
-        return running_loss/conf.eva_batches,\
-                running_loss_xy/conf.eva_batches,\
-                running_loss_wh/conf.eva_batches,\
-                running_loss_conf/conf.eva_batches,\
-                running_loss_cls/conf.eva_batches,\
+        return running_loss/batch_count,\
+                running_loss_xy/batch_count,\
+                running_loss_wh/batch_count,\
+                running_loss_conf/batch_count,\
+                running_loss_cls/batch_count,\
                 precision,recall,f1,cls_acc
+    
+    def eva_coco(self, conf, limit=0, level = 4):
+        total = limit if limit else len(self.val_loader.dataset)
+        image_ids = []
+        results = []
+        for i in tqdm(np.random.choice(np.random.permutation(len(self.val_loader.dataset)), total, replace=False)):
+            bboxes, labels, confidences, cls_conf = self.detect_on_img(conf,self.val_loader.dataset[i][0], level = level, show_img=False)
+            bboxes = xcycwh_2_xywh(bboxes)
+            ids = set([item['image_id'] for item in self.val_loader.dataset[i][1]])
+    #         assert len(ids) == 1 or len(ids) == 0, 'more than 1 image_id in one coco instance'
+            if len(ids) == 0: continue
+            image_id = ids.pop()
+            image_ids.append(image_id)
+            for k in range(len(labels)):
+                result = {
+                    "image_id": image_id,
+                    "category_id": self.val_loader.dataset.maps[1][labels[k].item()],
+                    "bbox": bboxes[k].numpy().tolist(),
+                    "score": cls_conf[k].item(),
+                }
+                results.append(result)
+
+        with open("results.json",'w',encoding='utf-8') as json_file:
+            json.dump(results,json_file,ensure_ascii=False)
+
+        coco_dt = self.val_loader.dataset.coco.loadRes("results.json")
+        cocoEval = COCOeval(self.val_loader.dataset.coco, coco_dt, "bbox")
+        cocoEval.params.imgIds = image_ids
+        cocoEval.evaluate()
+        cocoEval.accumulate()
+        print('-------------------------------------------------------------------------------')
+        cocoEval.summarize()
+
+        return cocoEval
+
 
     def find_lr(self,
                 conf,
@@ -418,13 +502,13 @@ class Yolo(object):
                         imgs_board.append(
                             self.val_loader.transform(img).unsqueeze(0))
                     imgs_board = torch.cat(imgs_board)
-                    bboxes_group_board, labels_group_board = self.predict(
-                        conf, imgs_board, return_img=False)
+                    bboxes_group, labels_group, confidences_group, cls_conf_group = self.predict(
+                        conf, imgs_board, return_img=False, return_confidence=True)
 
                     for i in range(20):
-                        img = show_util(conf, i, imgs_board,
-                                        labels_group_board, bboxes_group_board,
-                                        conf.correct_id_2_class, self.class_2_color)
+                        img = show_util_with_conf(conf, i, imgs_board, labels_group, bboxes_group,\
+                                           confidences_group, cls_conf_group,\
+                                           conf.correct_id_2_class, self.class_2_color)
                         self.writers[self.res_idx].add_image(
                             'pred_image_{}'.format(i),
                             trans.ToTensor()(img),
